@@ -12,7 +12,8 @@ def conectar_banco():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nome TEXT NOT NULL,
             idade INTEGER,
-            curso TEXT
+            curso TEXT,
+            nota REAL
         )
     """
     )
@@ -25,6 +26,7 @@ def limpar_campos():
     entry_idade.delete(0, END)
     entry_curso.set("")
     lbl_id_val.config(text="")
+    entry_nota.delete(0, END)
 
 
 def atualizar_tabela():
@@ -50,6 +52,7 @@ def salvar_aluno():
     nome = entry_nome.get()
     idade = entry_idade.get()
     curso = entry_curso.get()
+    nota = entry_nota.get()
     id_aluno = lbl_id_val.cget("text")
 
     if nome == "" or idade == "" or curso == "":
@@ -66,8 +69,8 @@ def salvar_aluno():
         messagebox.showinfo("Sucesso", "Aluno cadastrado com sucesso!")
     else: 
         cursor.execute(
-            "UPDATE alunos SET nome=?, idade=?, curso=? WHERE id=?",
-            (nome, idade, curso, id_aluno),
+            "UPDATE alunos SET nome=?, idade=?, curso=?, nota=? WHERE id=?",
+            (nome, idade, curso, nota, id_aluno),
         )
         messagebox.showinfo("Sucesso", "Dados do aluno atualizados!")
 
@@ -106,6 +109,7 @@ def selecionar_aluno(event):
     entry_nome.insert(0, valores[1])
     entry_idade.insert(0, valores[2])
     entry_curso.insert(0, valores[3])
+    entry_nota.insert(0, valores[4])
 
 
 janela = Tk()
@@ -145,6 +149,11 @@ opcoes_cursos = ["Análise e Desenvolvimento de Sistemas",
 entry_curso = ttk.Combobox(frame_campos, value=opcoes_cursos, width=38, state="readonly")
 entry_curso.grid(row=2, column=3, sticky="w", pady=5)
 
+lbl_nota = Label(frame_campos, text="Nota:", font=("Arial", 10))
+lbl_nota.grid(row=3, column=0, sticky="w", pady=5)
+entry_nota = ttk.Entry(frame_campos, width=10)
+entry_nota.grid(row=3, column=1, sticky="w", pady=5)
+
 frame_botoes = Frame(janela)
 frame_botoes.pack(fill="x", padx=15, pady=10)
 
@@ -166,14 +175,16 @@ frame_tabela = ttk.LabelFrame(
 )
 frame_tabela.pack(fill="both", expand=True, padx=15, pady=10)
 
-colunas = ("id", "nome", "idade", "curso")
+colunas = ("id", "nome", "idade", "curso", "nota")
 tabela = ttk.Treeview(frame_tabela, columns=colunas, show="headings")
 
 tabela.heading("id", text="ID")
 tabela.heading("nome", text="Nome")
 tabela.heading("idade", text="Idade")
 tabela.heading("curso", text="Curso")
+tabela.heading("nota", text="Nota")
 
+tabela.column("nota", width=70, anchor="center")
 tabela.column("id", width=50, anchor="center")
 tabela.column("nome", width=250)
 tabela.column("idade", width=70, anchor="center")
