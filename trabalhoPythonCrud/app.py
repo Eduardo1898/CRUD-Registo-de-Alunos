@@ -6,18 +6,27 @@ from tkinter import messagebox, ttk
 def conectar_banco():
     conexao = sqlite3.connect("sistema_alunos.db")
     cursor = conexao.cursor()
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS alunos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nome TEXT NOT NULL,
-            idade INTEGER,
-            curso TEXT,
-            nota REAL
+    try:
+        # A transação evita que duas instâncias tentem adicionar a coluna ao mesmo tempo.
+        cursor.execute("BEGIN IMMEDIATE")
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS alunos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nome TEXT NOT NULL,
+                idade INTEGER,
+                curso TEXT,
+                nota REAL
+            )
+            """
         )
-    """
-    )
-    conexao.commit()
+        colunas = cursor.execute("PRAGMA table_info(alunos)").fetchall()
+        if not any(coluna[1] == "nota" for coluna in colunas):
+            cursor.execute("ALTER TABLE alunos ADD COLUMN nota REAL")
+        conexao.commit()
+    except sqlite3.Error:
+        conexao.close()
+        raise
     return conexao, cursor
 
 
@@ -34,11 +43,13 @@ def atualizar_tabela():
         tabela.delete(linha)
 
     con, cursor = conectar_banco()
-    cursor.execute("SELECT * FROM alunos")
+    cursor.execute("SELECT id, nome, idade, curso, nota FROM alunos")
     dados = cursor.fetchall()
 
-    for row in dados:
-        tabela.insert("", END, values=row)
+    for id_aluno, nome, idade, curso, nota in dados:
+        tabela.insert(
+            "", END, values=(id_aluno, nome, idade, curso, "" if nota is None else nota)
+        )
 
     con.close()
 
@@ -52,7 +63,7 @@ def salvar_aluno():
     nome = entry_nome.get()
     idade = entry_idade.get()
     curso = entry_curso.get()
-    nota = entry_nota.get()
+    nota = entry_nota.get() or None
     id_aluno = lbl_id_val.cget("text")
 
     if nome == "" or idade == "" or curso == "":
@@ -63,8 +74,8 @@ def salvar_aluno():
 
     if id_aluno == "": 
         cursor.execute(
-            "INSERT INTO alunos (nome, idade, curso) VALUES (?, ?, ?)",
-            (nome, idade, curso),
+            "INSERT INTO alunos (nome, idade, curso, nota) VALUES (?, ?, ?, ?)",
+            (nome, idade, curso, nota),
         )
         messagebox.showinfo("Sucesso", "Aluno cadastrado com sucesso!")
     else: 
@@ -101,14 +112,18 @@ def deletar_aluno():
 
 
 def selecionar_aluno(event):
+    selecionados = tabela.selection()
+    if not selecionados:
+        return
+
     limpar_campos()
-    item_selecionado = tabela.selection()[0]
+    item_selecionado = selecionados[0]
     valores = tabela.item(item_selecionado, "values")
 
     lbl_id_val.config(text=valores[0])
     entry_nome.insert(0, valores[1])
     entry_idade.insert(0, valores[2])
-    entry_curso.insert(0, valores[3])
+    entry_curso.set(valores[3])
     entry_nota.insert(0, valores[4])
 
 
