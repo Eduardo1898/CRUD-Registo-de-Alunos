@@ -92,7 +92,10 @@ class CrudTest(unittest.TestCase):
         self.app.recarregar()
         self.selecionar(outro)
         self.assertEqual(self.app.botao_editar.cget("state"), "normal")
+        placeholder = self.app.campo_pesquisa.master.placeholder
+        self.assertEqual(placeholder.winfo_manager(), "place")
         self.app.campo_pesquisa.insert(0, "AGATA")
+        self.assertEqual(placeholder.winfo_manager(), "")
         self.assertEqual(self.app.tabela.get_children(), (str(id_aluno),))
         self.assertEqual(self.app.botao_editar.cget("state"), "disabled")
         self.assertEqual([card.cget("text") for card in self.app.indicadores], ["2", "4,00", "2"])

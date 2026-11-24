@@ -3,11 +3,12 @@ import sqlite3
 import customtkinter as ctk
 
 from . import tema
+from .icones import icone
 from .validators import CURSOS, validar_aluno
 
 
 class Dialogo(ctk.CTkToplevel):
-    def __init__(self, janela, titulo):
+    def __init__(self, janela, titulo, simbolo, *, destrutivo=False):
         super().__init__(janela, fg_color=tema.LATERAL)
         self.withdraw()
         self.title(titulo)
@@ -16,8 +17,20 @@ class Dialogo(ctk.CTkToplevel):
         self.bind("<Escape>", lambda _evento: self.destroy())
         self.conteudo = ctk.CTkFrame(self, fg_color="transparent")
         self.conteudo.pack(fill="both", expand=True, padx=26, pady=22)
-        ctk.CTkLabel(self.conteudo, text=titulo, text_color=tema.TEXTO,
-                     font=ctk.CTkFont(size=22, weight="bold")).pack(anchor="w")
+        cabecalho = ctk.CTkFrame(self.conteudo, fg_color="transparent")
+        cabecalho.pack(fill="x", pady=(0, 14))
+        cor = tema.ERRO_TEXTO if destrutivo else tema.AZUL_CLARO
+        fundo = tema.PERIGO["fg_color"] if destrutivo else "#203B60"
+        ctk.CTkLabel(cabecalho, text="", image=icone(simbolo, cor, 22),
+                     width=39, height=39, fg_color=fundo, corner_radius=9).pack(side="left")
+        ctk.CTkLabel(cabecalho, text=titulo, text_color=tema.TEXTO,
+                     font=tema.fonte(23, "bold")).pack(side="left", padx=(11, 0))
+
+    def barra_acoes(self):
+        ctk.CTkFrame(self.conteudo, height=1, fg_color=tema.BORDA).pack(fill="x", pady=(5, 13))
+        acoes = ctk.CTkFrame(self.conteudo, fg_color="transparent")
+        acoes.pack(fill="x")
+        return acoes
 
     def mostrar(self, foco):
         self.update_idletasks()
@@ -34,13 +47,22 @@ class Dialogo(ctk.CTkToplevel):
 
 class FormularioAluno(Dialogo):
     def __init__(self, janela, gravar, aluno=None):
-        super().__init__(janela, "Editar aluno" if aluno else "Novo aluno")
+        titulo, simbolo = ("Editar aluno", "editar") if aluno else ("Novo aluno", "adicionar")
+        super().__init__(janela, titulo, simbolo)
         self.gravar = gravar
         valores = aluno[1:] if aluno else ("", "", "", "")
-        self.campos = []
-        for rotulo, valor in zip(("Nome completo", "Idade", "Curso", "Nota (opcional)"), valores):
-            ctk.CTkLabel(self.conteudo, text=rotulo, text_color=tema.SECUNDARIO).pack(
-                anchor="w", pady=(10, 3)
+        campos = ctk.CTkFrame(self.conteudo, fg_color="transparent")
+        campos.pack(fill="x")
+        campos.grid_columnconfigure((0, 1), weight=1, uniform="campo")
+        campos_por_indice = {}
+        posicoes = ((0, 0, 2), (2, 0, 2), (4, 0, 1), (4, 1, 1))
+        rotulos = ("Nome completo", "Idade", "Curso", "Nota (opcional)")
+        for indice, (linha, coluna, largura) in zip((0, 2, 1, 3), posicoes):
+            rotulo, valor = rotulos[indice], valores[indice]
+            margem = ((0, 6), (6, 0))[coluna] if largura == 1 else 0
+            ctk.CTkLabel(campos, text=rotulo, text_color=tema.SECUNDARIO,
+                         font=tema.fonte(), height=21).grid(
+                row=linha, column=coluna, sticky="w", padx=margem, pady=(4, 3),
             )
             texto = "" if valor is None else str(valor)
             if rotulo == "Curso":
@@ -48,28 +70,31 @@ class FormularioAluno(Dialogo):
                 if texto and texto not in opcoes:
                     opcoes.append(texto)
                 campo = ctk.CTkComboBox(
-                    self.conteudo, values=opcoes, state="readonly", width=360,
-                    height=36, button_color=tema.BORDA, dropdown_fg_color=tema.SUPERFICIE,
-                    dropdown_hover_color=tema.BORDA, dropdown_text_color=tema.TEXTO,
-                    **tema.CAMPO,
+                    campos, values=opcoes, state="readonly", width=390, height=40,
+                    font=tema.fonte(), dropdown_font=tema.fonte(), button_color=tema.BORDA,
+                    dropdown_fg_color=tema.SUPERFICIE, dropdown_hover_color=tema.BORDA,
+                    dropdown_text_color=tema.TEXTO, **tema.CAMPO,
                 )
                 campo.set(texto)
             else:
-                campo = ctk.CTkEntry(self.conteudo, width=360, height=36, **tema.CAMPO)
+                campo = ctk.CTkEntry(campos, width=140, height=40, font=tema.fonte(), **tema.CAMPO)
                 if texto:
                     campo.insert(0, texto)
-            campo.pack(fill="x")
-            self.campos.append(campo)
+            campo.grid(row=linha + 1, column=coluna, columnspan=largura, sticky="ew",
+                       padx=margem, pady=(0, 8))
+            campos_por_indice[indice] = campo
+        self.campos = [campos_por_indice[indice] for indice in range(len(rotulos))]
 
-        self.erro = ctk.CTkLabel(self.conteudo, text="", text_color=tema.ERRO,
-                                 justify="left", wraplength=360, height=38)
-        self.erro.pack(anchor="w", pady=(5, 0))
-        acoes = ctk.CTkFrame(self.conteudo, fg_color="transparent")
-        acoes.pack(fill="x", pady=(8, 0))
-        ctk.CTkButton(acoes, text="Salvar", command=self.salvar, height=36,
-                      **tema.PRIMARIO).pack(side="right")
-        ctk.CTkButton(acoes, text="Cancelar", command=self.destroy, width=94,
-                      height=36, **tema.NEUTRO).pack(side="right", padx=(0, 8))
+        self.erro = ctk.CTkLabel(self.conteudo, text="", text_color=tema.ERRO_TEXTO,
+                                 font=tema.fonte(13), justify="left", wraplength=390, height=38)
+        self.erro.pack(anchor="w")
+        acoes = self.barra_acoes()
+        ctk.CTkButton(
+            acoes, text="Salvar", image=icone("salvar", "#FFFFFF", 16),
+            command=self.salvar, height=39, font=tema.fonte(14, "bold"), **tema.PRIMARIO,
+        ).pack(side="right")
+        ctk.CTkButton(acoes, text="Cancelar", command=self.destroy, width=96, height=39,
+                      font=tema.fonte(), **tema.NEUTRO).pack(side="right", padx=(0, 9))
         self.bind("<Return>", lambda _evento: self.salvar())
         self.mostrar(self.campos[0])
 
@@ -87,18 +112,20 @@ class FormularioAluno(Dialogo):
 
 class ConfirmacaoExclusao(Dialogo):
     def __init__(self, janela, nome, excluir):
-        super().__init__(janela, "Excluir aluno")
+        super().__init__(janela, "Excluir aluno", "excluir", destrutivo=True)
         ctk.CTkLabel(
             self.conteudo, text=f"Excluir o cadastro de {nome}? Esta ação é permanente.",
-            text_color=tema.SECUNDARIO, justify="left", wraplength=340,
-        ).pack(anchor="w", pady=(8, 20))
-        acoes = ctk.CTkFrame(self.conteudo, fg_color="transparent")
-        acoes.pack(fill="x")
-        ctk.CTkButton(acoes, text="Excluir aluno", height=36, **tema.PERIGO,
-                      command=lambda: self.confirmar(excluir)).pack(side="right")
-        cancelar = ctk.CTkButton(acoes, text="Cancelar", command=self.destroy,
-                                 width=94, height=36, **tema.NEUTRO)
-        cancelar.pack(side="right", padx=(0, 8))
+            text_color=tema.SECUNDARIO, font=tema.fonte(), justify="left", wraplength=350,
+        ).pack(anchor="w", pady=(0, 14))
+        acoes = self.barra_acoes()
+        ctk.CTkButton(
+            acoes, text="Excluir aluno", image=icone("excluir", tema.ERRO_TEXTO, 16),
+            height=39, font=tema.fonte(14, "bold"), command=lambda: self.confirmar(excluir),
+            **tema.PERIGO,
+        ).pack(side="right")
+        cancelar = ctk.CTkButton(acoes, text="Cancelar", command=self.destroy, width=96,
+                                 height=39, font=tema.fonte(), **tema.NEUTRO)
+        cancelar.pack(side="right", padx=(0, 9))
         self.mostrar(cancelar)
 
     def confirmar(self, excluir):
