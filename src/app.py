@@ -10,7 +10,7 @@ from openpyxl.utils.exceptions import IllegalCharacterError
 from . import tema
 from .componentes import CampoPesquisa, FiltrosAlunos
 from .dashboard import Dashboard
-from .database import BancoAlunos, ErroMigracao
+from .database import BancoAlunos, ErroBancoDemo, ErroMigracao
 from .dialogos import ConfirmacaoExclusao, DialogoExportacao, FormularioAluno
 from .exportacao import exportar_alunos
 from .icones import icone
@@ -329,20 +329,29 @@ class Aplicacao:
 
 def main():
     parser = argparse.ArgumentParser(description="StudentHub | Gestão acadêmica")
-    parser.add_argument("--banco-legado", help="Caminho do banco antigo a importar")
+    modo = parser.add_mutually_exclusive_group()
+    modo.add_argument("--banco-legado", help="Caminho do banco antigo a importar")
+    modo.add_argument("--demo", action="store_true", help="Abre o banco demonstrativo local")
     argumentos = parser.parse_args()
     ctk.set_appearance_mode("dark")
     janela = ctk.CTk()
     try:
-        banco = BancoAlunos(legado=argumentos.banco_legado)
-    except (sqlite3.Error, OSError, ErroMigracao) as erro:
+        if argumentos.demo:
+            banco = BancoAlunos.abrir_demo()
+        else:
+            banco = BancoAlunos(legado=argumentos.banco_legado)
+    except (sqlite3.Error, OSError, ErroMigracao, ErroBancoDemo) as erro:
         janela.withdraw()
-        detalhe = str(erro) if isinstance(erro, ErroMigracao) else "Verifique o arquivo e as permissões."
+        detalhe = "Verifique o arquivo e as permissões."
+        if isinstance(erro, (ErroMigracao, ErroBancoDemo)):
+            detalhe = str(erro)
         messagebox.showerror("Erro", f"Não foi possível preparar o banco. {detalhe}", parent=janela)
         janela.destroy()
         return 1
 
     Aplicacao(janela, banco)
+    if argumentos.demo:
+        janela.title("StudentHub | Modo demonstrativo")
     janela.mainloop()
     return 0
 
