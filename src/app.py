@@ -2,16 +2,19 @@ import argparse
 from functools import partial
 import sqlite3
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import filedialog, messagebox, ttk
 
 import customtkinter as ctk
+from openpyxl.utils.exceptions import IllegalCharacterError
 
 from . import tema
-from .componentes import CampoPesquisa
+from .componentes import CampoPesquisa, FiltrosAlunos
+from .dashboard import Dashboard
 from .database import BancoAlunos, ErroMigracao
-from .dialogos import ConfirmacaoExclusao, FormularioAluno
+from .dialogos import ConfirmacaoExclusao, DialogoExportacao, FormularioAluno
+from .exportacao import exportar_alunos
 from .icones import icone
-from .painel import calcular_indicadores, filtrar_alunos
+from .painel import formatar_numero, resumir
 
 
 class Aplicacao:
@@ -19,6 +22,7 @@ class Aplicacao:
         self.janela = janela
         self.banco = banco
         self.alunos = {}
+        self.visiveis = []
         self.pesquisa = tk.StringVar(master=janela)
         janela.title("StudentHub | Gestão acadêmica")
         janela.geometry("1200x740")
@@ -29,7 +33,7 @@ class Aplicacao:
 
         self._montar_menu()
 
-        principal = ctk.CTkFrame(janela, fg_color="transparent")
+        principal = self.principal = ctk.CTkFrame(janela, fg_color="transparent")
         principal.grid(row=0, column=1, sticky="nsew", padx=26, pady=(24, 16))
         principal.grid_columnconfigure(0, weight=1)
         principal.grid_rowconfigure(2, weight=1)
@@ -41,6 +45,9 @@ class Aplicacao:
                                    text_color=tema.SECUNDARIO, font=tema.fonte())
         self.status.grid(row=3, column=0, sticky="ew", pady=(5, 0))
         self.status.grid_remove()
+        self.dashboard = None
+        self.resumo_exibido = None
+        self.resumo = resumir(())
         self.pesquisa.trace_add("write", self._mostrar_lista)
         self.recarregar()
 
@@ -49,7 +56,7 @@ class Aplicacao:
         lateral.grid(row=0, column=0, sticky="nsew")
         lateral.grid_propagate(False)
         lateral.grid_columnconfigure(0, weight=1)
-        lateral.grid_rowconfigure(2, weight=1)
+        lateral.grid_rowconfigure(3, weight=1)
 
         marca = ctk.CTkFrame(lateral, fg_color="transparent")
         marca.grid(row=0, column=0, sticky="w", padx=15, pady=(28, 0))
@@ -62,14 +69,22 @@ class Aplicacao:
         ctk.CTkLabel(marca, text="Gestão acadêmica", text_color=tema.SECUNDARIO, height=17,
                      font=tema.fonte(12)).grid(row=1, column=1, sticky="w")
 
-        ctk.CTkButton(
+        self.botao_lista = ctk.CTkButton(
             lateral, text="Lista de alunos", image=icone("alunos", tema.AZUL_CLARO),
             anchor="w", height=44, font=tema.fonte(14, "bold"), command=self.ir_para_lista,
             **tema.NEUTRO,
-        ).grid(row=1, column=0, sticky="ew", padx=14, pady=(31, 0))
+        )
+        self.botao_lista.grid(row=1, column=0, sticky="ew", padx=14, pady=(31, 0))
+        self.botao_dashboard = ctk.CTkButton(
+            lateral, text="Desempenho", image=icone("media", tema.AZUL_CLARO),
+            anchor="w", height=44, font=tema.fonte(14, "bold"), command=self.ir_para_dashboard,
+            **tema.NEUTRO,
+        )
+        self.botao_dashboard.grid(row=2, column=0, sticky="ew", padx=14, pady=(5, 0))
+        self.botao_dashboard.configure(fg_color="transparent")
 
         rodape = ctk.CTkFrame(lateral, fg_color="transparent")
-        rodape.grid(row=3, column=0, sticky="ew", padx=16, pady=(0, 17))
+        rodape.grid(row=4, column=0, sticky="ew", padx=16, pady=(0, 17))
         ctk.CTkFrame(rodape, height=1, fg_color=tema.BORDA).pack(fill="x", pady=(0, 10))
         ctk.CTkLabel(
             rodape, text="SQLite local", image=icone("banco", tema.SECUNDARIO, 15),
@@ -122,7 +137,7 @@ class Aplicacao:
                               border_width=1, border_color=tema.BORDA)
         painel.grid(row=2, column=0, sticky="nsew")
         painel.grid_columnconfigure(0, weight=1)
-        painel.grid_rowconfigure(2, weight=1)
+        painel.grid_rowconfigure(3, weight=1)
 
         barra = ctk.CTkFrame(painel, fg_color="transparent")
         barra.grid(row=0, column=0, sticky="ew", padx=14, pady=(12, 7))
@@ -133,8 +148,10 @@ class Aplicacao:
         ctk.CTkLabel(barra, text="Alunos cadastrados", text_color=tema.TEXTO,
                      font=tema.fonte(20, "bold")).grid(row=0, column=0, sticky="w")
 
+        self.filtros = FiltrosAlunos(painel, self._mostrar_lista, self._limpar_filtros)
+        self.filtros.grid(row=1, column=0, sticky="ew", padx=15, pady=(2, 4))
         controles = ctk.CTkFrame(painel, fg_color="transparent")
-        controles.grid(row=1, column=0, sticky="ew", padx=15, pady=(2, 12))
+        controles.grid(row=2, column=0, sticky="ew", padx=15, pady=(2, 8))
         self.contagem = ctk.CTkLabel(controles, text="", text_color=tema.SECUNDARIO,
                                      font=tema.fonte())
         self.contagem.pack(side="left")
@@ -151,8 +168,14 @@ class Aplicacao:
         )
         self.botao_editar.pack(side="right", padx=(0, 8))
 
+        ctk.CTkButton(
+            controles, text="Exportar", image=icone("exportar", tema.TEXTO, 16),
+            width=97, height=35, font=tema.fonte(13, "bold"),
+            command=lambda: DialogoExportacao(self.janela, self._exportar), **tema.NEUTRO,
+        ).pack(side="right", padx=(0, 8))
+
         quadro = ctk.CTkFrame(painel, fg_color=tema.LATERAL, corner_radius=0)
-        quadro.grid(row=2, column=0, sticky="nsew", padx=14, pady=(0, 13))
+        quadro.grid(row=3, column=0, sticky="nsew", padx=14, pady=(0, 13))
         quadro.grid_columnconfigure(0, weight=1)
         quadro.grid_rowconfigure(0, weight=1)
         tema.estilizar_tabela(self.janela)
@@ -178,9 +201,50 @@ class Aplicacao:
     def _limpar_pesquisa(self, _evento=None):
         self.pesquisa.set("")
 
+    def _limpar_filtros(self):
+        self.filtros.limpar()
+        self._limpar_pesquisa()
+
     def ir_para_lista(self):
+        if self.dashboard is not None:
+            self.dashboard.grid_remove()
+        self.principal.grid()
+        self.botao_lista.configure(fg_color=tema.SUPERFICIE)
+        self.botao_dashboard.configure(fg_color="transparent")
         self._limpar_pesquisa()
         self.campo_pesquisa.focus_set()
+
+    def ir_para_dashboard(self):
+        if self.dashboard is None:
+            self.dashboard = Dashboard(self.janela)
+            self.dashboard.grid(row=0, column=1, sticky="nsew", padx=(26, 15), pady=(24, 16))
+        if self.resumo_exibido is not self.resumo:
+            self.dashboard.atualizar(self.resumo)
+            self.resumo_exibido = self.resumo
+        self.principal.grid_remove()
+        self.dashboard.grid()
+        self.botao_lista.configure(fg_color="transparent")
+        self.botao_dashboard.configure(fg_color=tema.SUPERFICIE)
+
+    def _exportar(self, extensao, filtrados):
+        nome = "CSV" if extensao == ".csv" else "Excel"
+        try:
+            destino = filedialog.asksaveasfilename(
+                parent=self.janela, title="Salvar relatório", initialfile=f"alunos{extensao}",
+                defaultextension=extensao, filetypes=[(nome, f"*{extensao}")],
+            )
+            if not destino:
+                return
+            if not destino.lower().endswith(extensao):
+                raise ValueError(f"Use a extensão {extensao} para o formato escolhido.")
+            exportar_alunos(self.visiveis if filtrados else self.alunos.values(), destino)
+        except ValueError as erro:
+            self._feedback(str(erro), tema.ERRO_TEXTO)
+        except (OSError, IllegalCharacterError, tk.TclError):
+            self._feedback("Não foi possível salvar o relatório. Verifique o arquivo e o destino.",
+                           tema.ERRO_TEXTO)
+        else:
+            self._feedback("Relatório exportado com sucesso.", tema.SUCESSO)
 
     def recarregar(self, mensagem=None):
         try:
@@ -189,8 +253,9 @@ class Aplicacao:
             aviso = "Não foi possível atualizar a lista."
             self._feedback(f"{mensagem} {aviso}" if mensagem else aviso, tema.ERRO_TEXTO)
             return
-        total, media, cursos = calcular_indicadores(self.alunos.values())
-        valores = (total, "—" if media is None else f"{media:.2f}".replace(".", ","), cursos)
+        self.resumo = resumir(self.alunos.values())
+        self.filtros.atualizar_cursos(self.alunos.values())
+        valores = (self.resumo.total, formatar_numero(self.resumo.media), self.resumo.distintos)
         for indicador, valor in zip(self.indicadores, valores):
             indicador.configure(text=str(valor))
         self._mostrar_lista()
@@ -198,7 +263,7 @@ class Aplicacao:
             self._feedback(mensagem, tema.SUCESSO)
 
     def _mostrar_lista(self, *_):
-        visiveis = filtrar_alunos(self.alunos.values(), self.pesquisa.get())
+        visiveis = self.visiveis = self.filtros.aplicar(self.alunos.values(), self.pesquisa.get())
         self.tabela.delete(*self.tabela.get_children())
         for indice, (id_aluno, nome, idade, curso, nota) in enumerate(visiveis):
             exibicao = f"{nota:g}".replace(".", ",") if isinstance(nota, (float, int)) else nota
@@ -208,7 +273,7 @@ class Aplicacao:
         if visiveis:
             resumo = f"{len(visiveis)} de {len(self.alunos)} alunos"
         else:
-            resumo = "Nenhum aluno encontrado" if self.pesquisa.get().strip() else "Nenhum aluno cadastrado"
+            resumo = "Nenhum aluno encontrado" if self.alunos else "Nenhum aluno cadastrado"
         self.contagem.configure(text=resumo)
         self._atualizar_acoes()
 
