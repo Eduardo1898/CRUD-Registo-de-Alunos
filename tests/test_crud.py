@@ -113,3 +113,38 @@ class CrudTest(unittest.TestCase):
         self.assertIn("Não foi possível salvar", formulario.erro.cget("text"))
         self.assertEqual(self.banco.listar(), [])
         self.assertEqual(self.app.status.cget("text"), "")
+
+    def test_filtros_exportacao_e_navegacao_do_dashboard(self):
+        id_aluno = self.banco.cadastrar(DadosAluno("Ágata Fictícia", 20, CURSOS[0], 7))
+        self.banco.cadastrar(DadosAluno("Bruno Fictício", 21, CURSOS[1], None))
+        self.app.recarregar()
+        self.app.filtros.sel_curso.set(CURSOS[0])
+        self.app.filtros.sel_faixa.set("7 a 10")
+        self.app.campo_pesquisa.insert(0, "agata")
+        self.assertEqual(self.app.tabela.get_children(), (str(id_aluno),))
+        self.assertEqual(self.app.indicadores[0].cget("text"), "2")
+
+        with patch("src.app.filedialog.asksaveasfilename", return_value=""), patch(
+            "src.app.exportar_alunos"
+        ) as exportar:
+            self.app._exportar(".csv", True)
+            exportar.assert_not_called()
+            self.assertEqual(self.app.status.cget("text"), "")
+
+        with patch("src.app.filedialog.asksaveasfilename", return_value="ficticio.csv"), patch(
+            "src.app.exportar_alunos"
+        ) as exportar:
+            self.app._exportar(".csv", True)
+            self.assertEqual(len(exportar.call_args.args[0]), 1)
+            self.app._exportar(".csv", False)
+            self.assertEqual(len(exportar.call_args.args[0]), 2)
+
+        self.app._limpar_filtros()
+        self.assertEqual(len(self.app.tabela.get_children()), 2)
+        self.app.botao_dashboard.invoke()
+        self.janela.update()
+        self.assertTrue(self.app.dashboard.winfo_ismapped())
+        self.assertFalse(self.app.principal.winfo_ismapped())
+        self.app.botao_lista.invoke()
+        self.janela.update()
+        self.assertTrue(self.app.principal.winfo_ismapped())

@@ -131,3 +131,36 @@ class ConfirmacaoExclusao(Dialogo):
     def confirmar(self, excluir):
         self.destroy()
         excluir()
+
+
+class DialogoExportacao(Dialogo):
+    def __init__(self, janela, exportar):
+        super().__init__(janela, "Exportar alunos", "exportar")
+        seletores = []
+        for titulo, valores in (
+            ("Formato", ["CSV", "Excel (.xlsx)"]),
+            ("Registros", ["Todos os alunos", "Somente alunos filtrados"]),
+        ):
+            ctk.CTkLabel(self.conteudo, text=titulo, text_color=tema.SECUNDARIO,
+                         font=tema.fonte()).pack(anchor="w")
+            seletor = ctk.CTkComboBox(
+                self.conteudo, values=valores, state="readonly", width=310, height=38,
+                font=tema.fonte(), button_color=tema.BORDA, dropdown_fg_color=tema.SUPERFICIE,
+                dropdown_hover_color=tema.BORDA, dropdown_text_color=tema.TEXTO, **tema.CAMPO,
+            )
+            seletor.set(valores[0])
+            seletor.pack(fill="x", pady=(0, 10))
+            seletores.append(seletor)
+
+        def confirmar():
+            formato, escopo = (seletor.get() for seletor in seletores)
+            self.destroy()
+            exportar(".csv" if formato == "CSV" else ".xlsx", escopo != "Todos os alunos")
+
+        acoes = self.barra_acoes()
+        ctk.CTkButton(acoes, text="Escolher destino", command=confirmar, height=39,
+                      font=tema.fonte(14, "bold"), **tema.PRIMARIO).pack(side="right")
+        cancelar = ctk.CTkButton(acoes, text="Cancelar", command=self.destroy, width=96, height=39,
+                                 font=tema.fonte(), **tema.NEUTRO)
+        cancelar.pack(side="right", padx=(0, 9))
+        self.mostrar(seletores[0])

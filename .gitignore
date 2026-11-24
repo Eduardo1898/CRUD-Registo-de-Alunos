@@ -22,3 +22,7 @@ dist/
 *.temp
 *.swp
 *~
+
+# Relatórios acadêmicos gerados localmente
+*.csv
+*.xlsx

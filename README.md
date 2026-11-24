@@ -20,6 +20,14 @@ python -m pip install -r requirements.txt
 python -m src.app
 ```
 
+## Filtros, relatórios e desempenho
+
+Na lista de alunos, combine a pesquisa por nome com os filtros de curso, faixa de notas e desempenho. **Sem nota** inclui registros em branco ou notas legadas inválidas. **Limpar filtros** redefine os seletores e a pesquisa. Os três indicadores da lista acompanham todo o cadastro.
+
+Em **Exportar**, escolha CSV ou Excel e selecione todos os alunos ou apenas os resultados atuais. As notas preenchidas são exportadas como números, com as ausentes em branco. O CSV usa UTF-8 com BOM, ponto e vírgula e vírgula decimal. O Excel inclui um cabeçalho fixo, filtros e colunas formatadas. Os arquivos são salvos no destino escolhido.
+
+A página **Desempenho** mostra a média geral, a quantidade de alunos avaliados e o percentual de avaliados com nota igual ou superior a 7. Os gráficos apresentam a quantidade de alunos por curso, a distribuição de desempenho (incluindo alunos sem nota) e as médias por curso. A nota 7 é uma referência demonstrativa. Alunos sem nota válida ficam fora das médias e do denominador do percentual.
+
 ## Banco de dados e migração
 
 O SQLite local fica em `data/sistema_alunos.db`, com caminho calculado a partir do código. A pasta é criada na primeira execução e fica fora do Git.
@@ -47,3 +55,5 @@ Os testes usam bancos temporários. Os testes de banco e validação executam se
 ```sh
 xvfb-run -a python -m unittest discover -s tests -v
 ```
+
+O workflow de GitHub Actions executa a suíte com Xvfb no Linux em pushes e pull requests, com Python 3.12 e 3.13.
