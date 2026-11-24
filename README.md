@@ -20,6 +20,21 @@ python -m pip install -r requirements.txt
 python -m src.app
 ```
 
+## Modo demonstrativo
+
+No Windows PowerShell, execute estes comandos na raiz do repositório:
+
+```powershell
+py -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m scripts.seed_demo
+.\.venv\Scripts\python.exe -m src.app --demo
+```
+
+Se o ambiente virtual já estiver criado e as dependências instaladas, execute apenas as duas últimas linhas. O script cria 50 alunos fictícios com uma seed fixa em `data/studenthub_demo.db`. Ao executá-lo novamente, os registros existentes no banco demonstrativo são preservados, inclusive as edições feitas no aplicativo.
+
+A opção `--demo` identifica o modo na barra de título. Para abrir o banco de uso normal, execute o aplicativo sem essa opção. As futuras capturas de tela do projeto serão armazenadas em `docs/images/`.
+
 ## Filtros, relatórios e desempenho
 
 Na lista de alunos, combine a pesquisa por nome com os filtros de curso, faixa de notas e desempenho. **Sem nota** inclui registros em branco ou notas legadas inválidas. **Limpar filtros** redefine os seletores e a pesquisa. Os três indicadores da lista acompanham todo o cadastro.

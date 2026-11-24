@@ -7,10 +7,16 @@ from tempfile import TemporaryDirectory
 RAIZ = Path(__file__).resolve().parents[1]
 NOME_BANCO = "sistema_alunos.db"
 BANCO_PADRAO = RAIZ / "data" / NOME_BANCO
+BANCO_DEMO = RAIZ / "data" / "studenthub_demo.db"
+ID_BANCO_DEMO = 0x5348444D  # SHDM
 BANCOS_LEGADOS = (RAIZ / "trabalhoPythonCrud" / NOME_BANCO, RAIZ / NOME_BANCO)
 
 
 class ErroMigracao(Exception):
+    pass
+
+
+class ErroBancoDemo(Exception):
     pass
 
 
@@ -30,6 +36,48 @@ class BancoAlunos:
 
         with closing(sqlite3.connect(self.caminho)) as conexao:
             self._migrar_esquema(conexao)
+
+    @classmethod
+    def abrir_demo(cls):
+        cls._verificar_demo()
+        return cls(BANCO_DEMO)
+
+    @classmethod
+    def gerar_demo(cls, alunos):
+        if BANCO_DEMO.exists() or BANCO_DEMO.is_symlink():
+            cls._verificar_demo()
+            return False
+
+        BANCO_DEMO.parent.mkdir(parents=True, exist_ok=True)
+        # Inicializa em um arquivo temporário e só publica depois do commit.
+        with TemporaryDirectory(dir=BANCO_DEMO.parent) as pasta:
+            copia = Path(pasta) / BANCO_DEMO.name
+            banco = cls(copia)
+            with banco._transacao() as conexao:
+                conexao.execute("BEGIN IMMEDIATE")
+                for aluno in alunos:
+                    banco._inserir_aluno(conexao, aluno)
+                conexao.execute(f"PRAGMA application_id = {ID_BANCO_DEMO}")
+            try:
+                BANCO_DEMO.hardlink_to(copia)
+            except FileExistsError:
+                cls._verificar_demo()
+                return False
+        return True
+
+    @staticmethod
+    def _verificar_demo():
+        if BANCO_DEMO.is_symlink():
+            raise ErroBancoDemo("O caminho do banco demonstrativo é um link. O arquivo foi preservado.")
+        if not BANCO_DEMO.is_file():
+            raise ErroBancoDemo("Banco demonstrativo indisponível. Execute python -m scripts.seed_demo.")
+        for origem in (BANCO_PADRAO, *BANCOS_LEGADOS):
+            if origem.exists() and BANCO_DEMO.samefile(origem):
+                raise ErroBancoDemo("O banco demonstrativo aponta para um banco de uso normal.")
+        with closing(sqlite3.connect(BANCO_DEMO.as_uri() + "?mode=ro", uri=True)) as conexao:
+            (identificador,) = conexao.execute("PRAGMA application_id").fetchone()
+        if identificador != ID_BANCO_DEMO:
+            raise ErroBancoDemo("O arquivo existente não é um banco demonstrativo do StudentHub. Ele foi preservado.")
 
     def _importar(self, origem, *, automatico=False):
         if self.caminho.exists():
@@ -88,13 +136,17 @@ class BancoAlunos:
                 "SELECT id, nome, idade, curso, nota FROM alunos ORDER BY id"
             ).fetchall()
 
+    @staticmethod
+    def _inserir_aluno(conexao, aluno):
+        cursor = conexao.execute(
+            "INSERT INTO alunos (nome, idade, curso, nota) VALUES (?, ?, ?, ?)",
+            (aluno.nome, aluno.idade, aluno.curso, aluno.nota),
+        )
+        return cursor.lastrowid
+
     def cadastrar(self, aluno):
         with self._transacao() as conexao:
-            cursor = conexao.execute(
-                "INSERT INTO alunos (nome, idade, curso, nota) VALUES (?, ?, ?, ?)",
-                (aluno.nome, aluno.idade, aluno.curso, aluno.nota),
-            )
-            return cursor.lastrowid
+            return self._inserir_aluno(conexao, aluno)
 
     def atualizar(self, id_aluno, aluno):
         with self._transacao() as conexao:
