@@ -1,13 +1,29 @@
 from contextlib import closing, contextmanager
+import os
 from pathlib import Path
 import sqlite3
+import sys
 from tempfile import TemporaryDirectory
 
 
 RAIZ = Path(__file__).resolve().parents[1]
 NOME_BANCO = "sistema_alunos.db"
-BANCO_PADRAO = RAIZ / "data" / NOME_BANCO
-BANCO_DEMO = RAIZ / "data" / "studenthub_demo.db"
+EMPACOTADO = getattr(sys, "frozen", False)
+
+
+def diretorio_dados():
+    if not EMPACOTADO:
+        return RAIZ / "data"
+    if sys.platform == "win32":
+        variavel, padrao = "LOCALAPPDATA", Path.home() / "AppData" / "Local"
+    else:
+        variavel, padrao = "XDG_DATA_HOME", Path.home() / ".local" / "share"
+    caminho = Path(os.environ.get(variavel, ""))
+    return (caminho if caminho.is_absolute() else padrao) / "StudentHub"
+
+
+BANCO_PADRAO = diretorio_dados() / NOME_BANCO
+BANCO_DEMO = diretorio_dados() / "studenthub_demo.db"
 ID_BANCO_DEMO = 0x5348444D  # SHDM
 BANCOS_LEGADOS = (RAIZ / "trabalhoPythonCrud" / NOME_BANCO, RAIZ / NOME_BANCO)
 
@@ -27,15 +43,21 @@ class BancoAlunos:
 
         if legado is not None:
             self._importar(Path(legado).resolve())
-        elif caminho is None and not self.caminho.exists():
+        elif not EMPACOTADO and caminho is None and not self.caminho.exists():
             fontes = [fonte for fonte in BANCOS_LEGADOS if fonte.is_file()]
             if len(fontes) > 1:
                 raise ErroMigracao("Há dois bancos legados. Escolha a origem com --banco-legado.")
             if fontes:
                 self._importar(fontes[0], automatico=True)
 
-        with closing(sqlite3.connect(self.caminho)) as conexao:
-            self._migrar_esquema(conexao)
+        somente_verificar = EMPACOTADO and self.caminho.exists()
+        if somente_verificar:
+            uri = self.caminho.as_uri() + "?mode=ro"
+            with closing(sqlite3.connect(uri, uri=True)) as conexao:
+                self._verificar_esquema_empacotado(conexao, uso_normal=caminho is None)
+        else:
+            with closing(sqlite3.connect(self.caminho)) as conexao:
+                self._migrar_esquema(conexao)
 
     @classmethod
     def abrir_demo(cls):
@@ -83,7 +105,7 @@ class BancoAlunos:
         if self.caminho.exists():
             if automatico:
                 return
-            raise ErroMigracao("O banco em data já existe. A importação preservou ambos os arquivos.")
+            raise ErroMigracao("O banco de destino já existe. A importação preservou ambos os arquivos.")
         if not origem.is_file():
             raise ErroMigracao("O arquivo de banco legado informado não existe.")
 
@@ -91,6 +113,8 @@ class BancoAlunos:
         with TemporaryDirectory(dir=self.caminho.parent) as diretorio:
             copia = Path(diretorio) / NOME_BANCO
             with closing(sqlite3.connect(origem.as_uri() + "?mode=ro", uri=True)) as fonte:
+                if EMPACOTADO and fonte.execute("PRAGMA application_id").fetchone()[0] == ID_BANCO_DEMO:
+                    raise ErroMigracao("Use --demo para abrir dados demonstrativos.")
                 with closing(sqlite3.connect(copia)) as destino:
                     fonte.backup(destino)
                     destino.execute("PRAGMA journal_mode=DELETE").fetchone()
@@ -102,6 +126,17 @@ class BancoAlunos:
             except FileExistsError as erro:
                 if not automatico:
                     raise ErroMigracao("O banco de destino já existe.") from erro
+
+    @staticmethod
+    def _verificar_esquema_empacotado(conexao, *, uso_normal):
+        if uso_normal and conexao.execute("PRAGMA application_id").fetchone()[0] == ID_BANCO_DEMO:
+            raise ErroMigracao("O arquivo indicado para uso normal é demonstrativo. Use --demo.")
+        colunas = {linha[1] for linha in conexao.execute("PRAGMA table_info(alunos)")}
+        if not {"id", "nome", "idade", "curso", "nota"} <= colunas:
+            raise ErroMigracao(
+                "O banco existente não tem o esquema esperado. Ele foi preservado. "
+                "Para importar um banco legado, guarde-o separadamente e use --banco-legado."
+            )
 
     @staticmethod
     def _migrar_esquema(conexao, *, exigir_tabela=False):

@@ -7,10 +7,12 @@ from tkinter import filedialog, messagebox, ttk
 import customtkinter as ctk
 from openpyxl.utils.exceptions import IllegalCharacterError
 
+from scripts.seed_demo import alunos_ficticios
+
 from . import tema
 from .componentes import CampoPesquisa, FiltrosAlunos
 from .dashboard import Dashboard
-from .database import BancoAlunos, ErroBancoDemo, ErroMigracao
+from .database import EMPACOTADO, BancoAlunos, ErroBancoDemo, ErroMigracao
 from .dialogos import ConfirmacaoExclusao, DialogoExportacao, FormularioAluno
 from .exportacao import exportar_alunos
 from .icones import icone
@@ -337,6 +339,8 @@ def main():
     janela = ctk.CTk()
     try:
         if argumentos.demo:
+            if EMPACOTADO:
+                BancoAlunos.gerar_demo(alunos_ficticios())
             banco = BancoAlunos.abrir_demo()
         else:
             banco = BancoAlunos(legado=argumentos.banco_legado)
