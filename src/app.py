@@ -1,197 +1,238 @@
 import argparse
+from functools import partial
 import sqlite3
 import tkinter as tk
 from tkinter import messagebox, ttk
 
+import customtkinter as ctk
+
+from . import tema
 from .database import BancoAlunos, ErroMigracao
-from .validators import CURSOS, apenas_numeros, validar_aluno
+from .dialogos import ConfirmacaoExclusao, FormularioAluno
+from .painel import calcular_indicadores, filtrar_alunos
 
 
 class Aplicacao:
     def __init__(self, janela, banco):
+        self.janela = janela
         self.banco = banco
-        janela.title("Sistema de Cadastro de Alunos (CRUD)")
-        janela.geometry("700x550")
-        janela.resizable(False, False)
+        self.alunos = {}
+        self.pesquisa = tk.StringVar(master=janela)
+        janela.title("StudentHub | Gestão acadêmica")
+        janela.geometry("1200x740")
+        janela.minsize(900, 550)
+        janela.configure(fg_color=tema.FUNDO)
+        janela.grid_columnconfigure(1, weight=1)
+        janela.grid_rowconfigure(0, weight=1)
 
-        estilo = ttk.Style(janela)
-        estilo.theme_use("clam")
-
-        frame_campos = ttk.LabelFrame(
-            janela, text=" Dados do Aluno ", padding=10
+        lateral = ctk.CTkFrame(janela, width=196, corner_radius=0, fg_color=tema.LATERAL)
+        lateral.grid(row=0, column=0, sticky="nsew")
+        lateral.grid_propagate(False)
+        lateral.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(lateral, text="StudentHub", text_color=tema.TEXTO,
+                     font=ctk.CTkFont(size=26, weight="bold")).grid(
+            row=0, column=0, sticky="w", padx=22, pady=(27, 0)
         )
-        frame_campos.pack(fill="x", padx=15, pady=10)
+        ctk.CTkLabel(lateral, text="Gestão acadêmica", text_color=tema.SECUNDARIO,
+                     font=ctk.CTkFont(size=13)).grid(row=1, column=0, sticky="w", padx=23)
+        ctk.CTkButton(
+            lateral, text="Lista de alunos", anchor="w", height=42, **tema.NEUTRO,
+            command=self.ir_para_lista,
+        ).grid(row=2, column=0, sticky="ew", padx=15, pady=(35, 0))
 
-        self.lbl_id_val = tk.Label(
-            frame_campos, text="", font=("Arial", 10, "bold"), fg="blue"
+        principal = ctk.CTkFrame(janela, fg_color="transparent")
+        principal.grid(row=0, column=1, sticky="nsew", padx=26, pady=(24, 16))
+        principal.grid_columnconfigure(0, weight=1)
+        principal.grid_rowconfigure(2, weight=1)
+        self._montar_cabecalho(principal)
+        self._montar_indicadores(principal)
+        self._montar_lista(principal)
+
+        self.status = ctk.CTkLabel(principal, text="", anchor="w", text_color=tema.SECUNDARIO)
+        self.status.grid(row=3, column=0, sticky="ew", pady=(5, 0))
+        self.pesquisa.trace_add("write", self._mostrar_lista)
+        self.recarregar()
+
+    def _montar_cabecalho(self, principal):
+        cabecalho = ctk.CTkFrame(principal, fg_color="transparent")
+        cabecalho.grid(row=0, column=0, sticky="ew", pady=(0, 20))
+        cabecalho.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(cabecalho, text="Gestão de alunos", text_color=tema.TEXTO,
+                     font=ctk.CTkFont(size=34, weight="bold")).grid(row=0, column=0, sticky="w")
+        ctk.CTkButton(cabecalho, text="+ Novo aluno", height=40, width=122,
+                      command=self.novo_aluno, **tema.PRIMARIO).grid(row=0, column=1)
+
+    def _montar_indicadores(self, principal):
+        faixa = ctk.CTkFrame(principal, fg_color="transparent")
+        faixa.grid(row=1, column=0, sticky="ew", pady=(0, 19))
+        self.indicadores = []
+        titulos = ("Total de alunos", "Média geral das notas", "Cursos distintos")
+        for coluna, titulo in enumerate(titulos):
+            faixa.grid_columnconfigure(coluna, weight=1, uniform="indicador")
+            card = ctk.CTkFrame(faixa, corner_radius=12, fg_color=tema.LATERAL,
+                                border_width=1, border_color=tema.BORDA)
+            card.grid(row=0, column=coluna, sticky="nsew", padx=(0, 12 if coluna < 2 else 0))
+            ctk.CTkLabel(card, text=titulo, text_color=tema.SECUNDARIO,
+                         font=ctk.CTkFont(size=13)).pack(anchor="w", padx=15, pady=(10, 0))
+            valor = ctk.CTkLabel(card, text="—", text_color=tema.TEXTO,
+                                  font=ctk.CTkFont(size=29, weight="bold"))
+            valor.pack(anchor="w", padx=15, pady=(0, 10))
+            self.indicadores.append(valor)
+
+    def _montar_lista(self, principal):
+        painel = ctk.CTkFrame(principal, corner_radius=12, fg_color=tema.LATERAL,
+                              border_width=1, border_color=tema.BORDA)
+        painel.grid(row=2, column=0, sticky="nsew")
+        painel.grid_columnconfigure(0, weight=1)
+        painel.grid_rowconfigure(2, weight=1)
+
+        barra = ctk.CTkFrame(painel, fg_color="transparent")
+        barra.grid(row=0, column=0, sticky="ew", padx=14, pady=(12, 7))
+        barra.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(barra, text="Buscar por nome", text_color=tema.SECUNDARIO).grid(
+            row=0, column=1, sticky="e", padx=(10, 8)
         )
-
-        lbl_nome = tk.Label(frame_campos, text="Nome:", font=("Arial", 10))
-        lbl_nome.grid(row=1, column=0, sticky="w", pady=5)
-        self.entry_nome = ttk.Entry(frame_campos, width=50)
-        self.entry_nome.grid(row=1, column=1, columnspan=3, sticky="w", pady=5)
-
-        lbl_idade = tk.Label(frame_campos, text="Idade:", font=("Arial", 10))
-        lbl_idade.grid(row=2, column=0, sticky="w", pady=5)
-        valida_num = janela.register(apenas_numeros)
-        self.entry_idade = ttk.Entry(frame_campos, width=10, validate="key", validatecommand=(valida_num, "%P"))
-        self.entry_idade.grid(row=2, column=1, sticky="w", pady=5)
-
-        lbl_curso = tk.Label(frame_campos, text="Curso:", font=("Arial", 10))
-        lbl_curso.grid(row=2, column=2, sticky="w", padx=(20, 5), pady=5)
-        self.entry_curso = ttk.Combobox(frame_campos, values=CURSOS, width=38, state="readonly")
-        self.entry_curso.grid(row=2, column=3, sticky="w", pady=5)
-
-        lbl_nota = tk.Label(frame_campos, text="Nota:", font=("Arial", 10))
-        lbl_nota.grid(row=3, column=0, sticky="w", pady=5)
-        self.entry_nota = ttk.Entry(frame_campos, width=10)
-        self.entry_nota.grid(row=3, column=1, sticky="w", pady=5)
-
-        frame_botoes = tk.Frame(janela)
-        frame_botoes.pack(fill="x", padx=15, pady=10)
-
-        btn_salvar = ttk.Button(
-            frame_botoes, text="Salvar / Atualizar", command=self.salvar_aluno
+        self.campo_pesquisa = ctk.CTkEntry(
+            barra, width=174, height=36, textvariable=self.pesquisa, **tema.CAMPO
         )
-        btn_salvar.pack(side="left", padx=5)
+        self.campo_pesquisa.bind("<Escape>", self._limpar_pesquisa)
+        self.campo_pesquisa.grid(row=0, column=2, sticky="e")
+        ctk.CTkLabel(barra, text="Alunos cadastrados", text_color=tema.TEXTO,
+                     font=ctk.CTkFont(size=19, weight="bold")).grid(row=0, column=0, sticky="w")
 
-        btn_deletar = ttk.Button(frame_botoes, text="Deletar", command=self.deletar_aluno)
-        btn_deletar.pack(side="left", padx=5)
+        controles = ctk.CTkFrame(painel, fg_color="transparent")
+        controles.grid(row=1, column=0, sticky="ew", padx=14, pady=(0, 10))
+        self.contagem = ctk.CTkLabel(controles, text="", text_color=tema.SECUNDARIO)
+        self.contagem.pack(side="left")
+        self.botao_excluir = ctk.CTkButton(controles, text="Excluir", width=78, height=32,
+                                           command=self.pedir_exclusao, **tema.PERIGO)
+        self.botao_excluir.pack(side="right")
+        self.botao_editar = ctk.CTkButton(controles, text="Editar", width=78, height=32,
+                                          command=self.editar_aluno, **tema.NEUTRO)
+        self.botao_editar.pack(side="right", padx=(0, 8))
 
-        btn_limpar = ttk.Button(
-            frame_botoes, text="Limpar Campos", command=self.limpar_campos
-        )
-        btn_limpar.pack(side="left", padx=5)
+        quadro = ctk.CTkFrame(painel, fg_color=tema.LATERAL, corner_radius=0)
+        quadro.grid(row=2, column=0, sticky="nsew", padx=14, pady=(0, 13))
+        quadro.grid_columnconfigure(0, weight=1)
+        quadro.grid_rowconfigure(0, weight=1)
+        tema.estilizar_tabela(self.janela)
+        colunas = (("id", "ID", 56, False), ("nome", "Nome", 135, True),
+                   ("idade", "Idade", 60, False), ("curso", "Curso", 252, True),
+                   ("nota", "Nota", 60, False))
+        self.tabela = ttk.Treeview(quadro, columns=[coluna[0] for coluna in colunas],
+                                   style="StudentHub.Treeview", show="headings", selectmode="browse")
+        self.tabela.grid(row=0, column=0, sticky="nsew")
+        for coluna, titulo, largura, flexivel in colunas:
+            alinhamento = "w" if flexivel else "center"
+            self.tabela.heading(coluna, text=titulo, anchor=alinhamento)
+            self.tabela.column(coluna, width=largura, minwidth=largura, stretch=flexivel,
+                               anchor=alinhamento)
+        self.tabela.tag_configure("alternada", background="#223047")
+        rolagem = ctk.CTkScrollbar(quadro, command=self.tabela.yview, fg_color=tema.LATERAL,
+                                   button_color=tema.BORDA)
+        rolagem.grid(row=0, column=1, sticky="ns")
+        self.tabela.configure(yscrollcommand=rolagem.set)
+        self.tabela.bind("<<TreeviewSelect>>", self._atualizar_acoes)
+        self.tabela.bind("<Return>", lambda _evento: self.editar_aluno())
 
-        frame_tabela = ttk.LabelFrame(
-            janela, text=" Alunos Cadastrados ", padding=5
-        )
-        frame_tabela.pack(fill="both", expand=True, padx=15, pady=10)
+    def _limpar_pesquisa(self, _evento=None):
+        self.pesquisa.set("")
 
-        colunas = ("id", "nome", "idade", "curso", "nota")
-        self.tabela = ttk.Treeview(frame_tabela, columns=colunas, show="headings")
+    def ir_para_lista(self):
+        self._limpar_pesquisa()
+        self.campo_pesquisa.focus_set()
 
-        self.tabela.heading("id", text="ID")
-        self.tabela.heading("nome", text="Nome")
-        self.tabela.heading("idade", text="Idade")
-        self.tabela.heading("curso", text="Curso")
-        self.tabela.heading("nota", text="Nota")
-
-        self.tabela.column("nota", width=70, anchor="center")
-        self.tabela.column("id", width=50, anchor="center")
-        self.tabela.column("nome", width=250)
-        self.tabela.column("idade", width=70, anchor="center")
-        self.tabela.column("curso", width=200)
-
-        scroll = ttk.Scrollbar(frame_tabela, orient="vertical", command=self.tabela.yview)
-        self.tabela.configure(yscrollcommand=scroll.set)
-
-        self.tabela.pack(side="left", fill="both", expand=True)
-        scroll.pack(side="right", fill="y")
-
-        self.tabela.bind("<<TreeviewSelect>>", self.selecionar_aluno)
-
-        self.atualizar_tabela()
-
-    def limpar_campos(self):
-        self.entry_nome.delete(0, tk.END)
-        self.entry_idade.delete(0, tk.END)
-        self.entry_curso.set("")
-        self.lbl_id_val.config(text="")
-        self.entry_nota.delete(0, tk.END)
-
-    def atualizar_tabela(self):
+    def recarregar(self, mensagem=None):
         try:
-            dados = self.banco.listar()
+            self.alunos = {str(aluno[0]): aluno for aluno in self.banco.listar()}
         except sqlite3.Error:
-            messagebox.showerror("Erro", "Não foi possível consultar os alunos.")
+            aviso = "Não foi possível atualizar a lista."
+            self._feedback(f"{mensagem} {aviso}" if mensagem else aviso, tema.ERRO)
             return
+        total, media, cursos = calcular_indicadores(self.alunos.values())
+        valores = (total, "—" if media is None else f"{media:.2f}".replace(".", ","), cursos)
+        for indicador, valor in zip(self.indicadores, valores):
+            indicador.configure(text=str(valor))
+        self._mostrar_lista()
+        if mensagem:
+            self._feedback(mensagem, tema.SUCESSO)
 
-        for linha in self.tabela.get_children():
-            self.tabela.delete(linha)
-        for id_aluno, nome, idade, curso, nota in dados:
-            self.tabela.insert("", tk.END, values=(
-                id_aluno, nome, "" if idade is None else idade,
-                "" if curso is None else curso, "" if nota is None else nota,
-            ))
+    def _mostrar_lista(self, *_):
+        visiveis = filtrar_alunos(self.alunos.values(), self.pesquisa.get())
+        self.tabela.delete(*self.tabela.get_children())
+        for indice, (id_aluno, nome, idade, curso, nota) in enumerate(visiveis):
+            exibicao = f"{nota:g}".replace(".", ",") if isinstance(nota, (float, int)) else nota
+            self.tabela.insert("", "end", iid=str(id_aluno), tags=("alternada",) if indice % 2 else (),
+                               values=(id_aluno, nome, idade if idade is not None else "—",
+                                       curso or "—", exibicao if exibicao is not None else "—"))
+        if visiveis:
+            resumo = f"{len(visiveis)} de {len(self.alunos)} alunos"
+        else:
+            resumo = "Nenhum aluno encontrado" if self.pesquisa.get().strip() else "Nenhum aluno cadastrado"
+        self.contagem.configure(text=resumo)
+        self._atualizar_acoes()
 
-    def salvar_aluno(self):
-        try:
-            aluno = validar_aluno(
-                self.entry_nome.get(), self.entry_idade.get(),
-                self.entry_curso.get(), self.entry_nota.get(),
-            )
-        except ValueError as erro:
-            messagebox.showwarning("Aviso", str(erro))
-            return
+    def _selecionado(self):
+        selecao = self.tabela.selection()
+        return self.alunos.get(selecao[0]) if selecao else None
 
-        id_aluno = self.lbl_id_val.cget("text")
-        try:
-            if id_aluno == "":
-                self.banco.cadastrar(aluno)
-                mensagem = "Aluno cadastrado com sucesso!"
-            elif self.banco.atualizar(id_aluno, aluno):
-                mensagem = "Dados do aluno atualizados!"
-            else:
-                self._registro_ausente()
-                return
-        except sqlite3.Error:
-            messagebox.showerror("Erro", "Não foi possível salvar os dados do aluno.")
-            return
+    def _atualizar_acoes(self, _evento=None):
+        estado = "normal" if self._selecionado() else "disabled"
+        self.botao_editar.configure(state=estado)
+        self.botao_excluir.configure(state=estado)
 
-        messagebox.showinfo("Sucesso", mensagem)
-        self.limpar_campos()
-        self.atualizar_tabela()
+    def _feedback(self, mensagem, cor):
+        self.status.configure(text=mensagem, text_color=cor)
 
-    def deletar_aluno(self):
-        id_aluno = self.lbl_id_val.cget("text")
-        if id_aluno == "":
-            messagebox.showwarning("Aviso", "Selecione um aluno na tabela para deletar!")
-            return
-        if not messagebox.askyesno("Confirmação", "Tem certeza que deseja deletar este aluno?"):
-            return
+    def novo_aluno(self):
+        FormularioAluno(self.janela, self._cadastrar)
 
+    def _cadastrar(self, dados):
+        self.banco.cadastrar(dados)
+        self._limpar_pesquisa()
+        self.recarregar("Aluno cadastrado com sucesso.")
+
+    def editar_aluno(self):
+        aluno = self._selecionado()
+        if aluno:
+            FormularioAluno(self.janela, partial(self._atualizar, aluno[0]), aluno=aluno)
+
+    def _atualizar(self, id_aluno, dados):
+        if not self.banco.atualizar(id_aluno, dados):
+            self.recarregar()
+            raise ValueError("Este aluno já não está cadastrado.")
+        self.recarregar("Cadastro atualizado com sucesso.")
+
+    def pedir_exclusao(self):
+        aluno = self._selecionado()
+        if aluno:
+            ConfirmacaoExclusao(self.janela, aluno[1], partial(self._excluir, aluno[0]))
+
+    def _excluir(self, id_aluno):
         try:
             excluido = self.banco.excluir(id_aluno)
         except sqlite3.Error:
-            messagebox.showerror("Erro", "Não foi possível excluir o aluno.")
+            self._feedback("Não foi possível excluir o aluno. Tente novamente.", tema.ERRO)
             return
-        if not excluido:
-            self._registro_ausente()
-            return
-        self.limpar_campos()
-        self.atualizar_tabela()
-
-    def _registro_ausente(self):
-        messagebox.showwarning("Aviso", "O aluno selecionado já não está cadastrado.")
-        self.limpar_campos()
-        self.atualizar_tabela()
-
-    def selecionar_aluno(self, _evento):
-        selecionados = self.tabela.selection()
-        if not selecionados:
-            return
-
-        self.limpar_campos()
-        valores = self.tabela.item(selecionados[0], "values")
-        self.lbl_id_val.config(text=valores[0])
-        self.entry_nome.insert(0, valores[1])
-        self.entry_idade.insert(0, valores[2])
-        self.entry_curso.set(valores[3])
-        self.entry_nota.insert(0, valores[4])
+        if excluido:
+            self.recarregar("Aluno excluído com sucesso.")
+        else:
+            self.recarregar()
+            self._feedback("Este aluno já não está cadastrado.", tema.ERRO)
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Sistema de Cadastro de Alunos")
+    parser = argparse.ArgumentParser(description="StudentHub | Gestão acadêmica")
     parser.add_argument("--banco-legado", help="Caminho do banco antigo a importar")
     argumentos = parser.parse_args()
-    janela = tk.Tk()
+    ctk.set_appearance_mode("dark")
+    janela = ctk.CTk()
     try:
         banco = BancoAlunos(legado=argumentos.banco_legado)
     except (sqlite3.Error, OSError, ErroMigracao) as erro:
         janela.withdraw()
         detalhe = str(erro) if isinstance(erro, ErroMigracao) else "Verifique o arquivo e as permissões."
-        messagebox.showerror("Erro", f"Não foi possível preparar o banco. {detalhe}")
+        messagebox.showerror("Erro", f"Não foi possível preparar o banco. {detalhe}", parent=janela)
         janela.destroy()
         return 1
 

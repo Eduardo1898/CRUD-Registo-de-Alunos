@@ -1,12 +1,22 @@
-# CRUD-Registo-de-Alunos
+# StudentHub
 
-Aplicação desktop para cadastrar, consultar, atualizar e excluir alunos usando Python, Tkinter e SQLite. A nota é opcional e aceita valores de 0 a 10, com vírgula ou ponto decimal.
+Sistema desktop de gestão acadêmica para cadastrar, consultar, atualizar e excluir alunos. A interface em português usa CustomTkinter e SQLite.
 
-## Execução
+A pesquisa filtra a tabela por nome, sem distinção de maiúsculas ou acentos. Os indicadores mostram o total de alunos, a média das notas válidas preenchidas e os cursos distintos de todo o cadastro. A nota é opcional e aceita valores de 0 a 10, com vírgula ou ponto decimal.
 
-Use Python 3.10 ou mais recente com Tkinter e um ambiente gráfico. A aplicação usa apenas a biblioteca padrão. Na raiz do projeto, execute:
+## Instalação e execução
+
+Use Python 3.10 ou mais recente com Tkinter e um ambiente gráfico. No Linux, instale o pacote `python3-tk` se o Tkinter estiver ausente. Na raiz do projeto, crie e ative um ambiente virtual:
 
 ```sh
+python -m venv .venv
+source .venv/bin/activate
+```
+
+No Windows PowerShell, ative com `.venv\Scripts\Activate.ps1`. Em seguida, instale as dependências e inicie o StudentHub:
+
+```sh
+python -m pip install -r requirements.txt
 python -m src.app
 ```
 
@@ -32,7 +42,7 @@ Na raiz do projeto, execute:
 python -m unittest discover -s tests -v
 ```
 
-Os testes usam bancos temporários. Os testes de banco e validação executam sem interface gráfica. Os testes de Tkinter são pulados quando não há display. No Linux com Xvfb instalado, é possível executar a suíte completa em um display virtual:
+Os testes usam bancos temporários. Os testes de banco e validação executam sem interface gráfica. Os testes de interface são pulados quando não há display. No Linux com Xvfb instalado, é possível executar a suíte completa em um display virtual:
 
 ```sh
 xvfb-run -a python -m unittest discover -s tests -v

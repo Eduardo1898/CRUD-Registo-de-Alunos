@@ -41,9 +41,13 @@ def validar_aluno(nome, idade, curso, nota):
     if not curso:
         raise ValueError("Informe o curso do aluno.")
 
+    return DadosAluno(nome, idade, curso, validar_nota(nota))
+
+
+def validar_nota(nota):
     nota = nota.strip()
     if not nota:
-        return DadosAluno(nome, idade, curso, None)
+        return None
     if not re.fullmatch(r"[+-]?(?:\d+(?:[.,]\d*)?|[.,]\d+)", nota):
         raise ValueError("Informe uma nota de 0 a 10 ou deixe o campo vazio.")
     try:
@@ -52,4 +56,4 @@ def validar_aluno(nome, idade, curso, nota):
         raise ValueError("Informe uma nota válida.") from erro
     if not 0 <= valor <= 10:
         raise ValueError("Informe uma nota de 0 a 10 ou deixe o campo vazio.")
-    return DadosAluno(nome, idade, curso, float(valor))
+    return float(valor)
