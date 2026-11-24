@@ -43,7 +43,7 @@ git clone https://github.com/Eduardo1898/StudentHub.git
 cd StudentHub
 ```
 
-Enquanto o PR #5 estiver em revisão, execute `git switch chore/preparacao-release` após clonar para testar a versão desta branch. Os comandos de instalação e execução abaixo partem da raiz do repositório.
+Os comandos de instalação e execução abaixo devem ser executados na raiz do repositório.
 
 **Windows PowerShell**
 
@@ -139,7 +139,7 @@ git clone https://github.com/Eduardo1898/StudentHub.git
 cd StudentHub
 ```
 
-While PR #5 is under review, run `git switch chore/preparacao-release` after cloning to try the version on this branch. Run the installation and launch commands from the repository root.
+Run the installation and launch commands below from the repository root.
 
 **Windows PowerShell**
 
