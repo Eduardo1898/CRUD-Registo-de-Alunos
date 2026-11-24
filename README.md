@@ -11,6 +11,10 @@
 ![Pandas](https://img.shields.io/badge/Data-Pandas-150458?logo=pandas&logoColor=white)
 ![Matplotlib](https://img.shields.io/badge/Charts-Matplotlib-334155)
 
+[![Download for Windows](https://img.shields.io/badge/Download-Windows%20x64-2563EB?logo=windows&logoColor=white&style=for-the-badge)](https://github.com/Eduardo1898/StudentHub/releases/download/v1.0.0/StudentHub-v1.0.0-windows-x64.zip)
+
+[StudentHub v1.0.0 — Release](https://github.com/Eduardo1898/StudentHub/releases/tag/v1.0.0) · Windows x64 · Não requer Python / No Python installation required.
+
 ## Português (Brasil)
 
 O StudentHub é um aplicativo desktop para organizar cadastros de alunos, acompanhar notas por curso e exportar registros acadêmicos. Foi criado como um trabalho de faculdade em Python e Tkinter e evoluiu de um CRUD local para um projeto de portfólio com módulos separados de interface, persistência, análise e exportação. A interface é em português brasileiro e usa armazenamento SQLite local.
@@ -85,6 +89,10 @@ Depois de instalar as dependências, gere os dados fictícios e abra a demonstra
 
 ### Pacote Windows v1.0.0
 
+**[Baixar StudentHub v1.0.0 para Windows x64](https://github.com/Eduardo1898/StudentHub/releases/download/v1.0.0/StudentHub-v1.0.0-windows-x64.zip).** Não é necessário instalar Python. Extraia todo o ZIP e abra `StudentHub.exe`, mantendo a pasta `_internal` ao lado do executável. Para abrir a demonstração, execute `StudentHub.exe --demo` no PowerShell a partir da pasta extraída.
+
+#### Compilação a partir do código-fonte
+
 Para construir o pacote, instale o **Python 3.12 x64** com Tkinter e o launcher `py`. Na raiz do repositório, execute no PowerShell:
 
 ```powershell
@@ -97,7 +105,7 @@ O script cria o ambiente de build em `.venv-build/` e gera `dist/windows/Student
 
 - O executável guarda o banco normal e o demonstrativo em `%LOCALAPPDATA%\StudentHub`, em arquivos separados. Na primeira execução com `--demo`, ele cria os 50 registros fictícios. As execuções seguintes preservam as edições.
 - Para importar um banco por escolha explícita, acrescente `--banco-legado "C:\caminho\sistema_alunos.db"` ao comando de execução **antes de criar o banco normal do executável**. A importação preserva o arquivo de origem e exige que o destino esteja ausente. A execução pelo código-fonte continua usando `data/`.
-- Quando o workflow **Pacote Windows** estiver disponível na branch padrão, abra a aba **Actions**, selecione o workflow e use **Run workflow**. O ZIP fica em **Artifacts** na execução do workflow.
+- Para gerar um novo pacote pelo workflow **Pacote Windows** na branch padrão, abra a aba **Actions**, selecione o workflow e use **Run workflow**. O ZIP fica em **Artifacts** na execução do workflow.
 
 ### Testes e integração contínua
 
@@ -197,6 +205,10 @@ After installing the dependencies, generate the fictional dataset and launch the
 
 ### Windows v1.0.0 package
 
+**[Download StudentHub v1.0.0 for Windows x64](https://github.com/Eduardo1898/StudentHub/releases/download/v1.0.0/StudentHub-v1.0.0-windows-x64.zip).** No Python installation is required. Extract the entire ZIP and open `StudentHub.exe`, keeping the `_internal` folder alongside it. To launch the demo, run `StudentHub.exe --demo` from PowerShell in the extracted folder.
+
+#### Building from source
+
 To build the package, install **64-bit Python 3.12** with Tkinter and the `py` launcher. From the repository root, run these PowerShell commands:
 
 ```powershell
@@ -209,7 +221,7 @@ The script creates a build environment in `.venv-build/` and writes `dist/window
 
 - The executable keeps the regular and demo databases in separate files under `%LOCALAPPDATA%\StudentHub`. The first launch with `--demo` creates the 50 fictional records. Later launches preserve edits.
 - To import a database explicitly, add `--banco-legado "C:\path\sistema_alunos.db"` to the launch command **before creating the executable's regular database**. Import preserves the source and requires an unused destination. Running from source still uses `data/`.
-- Once the **Pacote Windows** workflow is available on the default branch, open **Actions**, select the workflow, and choose **Run workflow**. The ZIP is listed under **Artifacts** for that run.
+- To build a new package using the **Pacote Windows** workflow on the default branch, open **Actions**, select the workflow, and choose **Run workflow**. The ZIP is listed under **Artifacts** for that run.
 
 ### Tests and continuous integration
 
