@@ -83,6 +83,22 @@ Depois de instalar as dependências, gere os dados fictícios e abra a demonstra
 - A primeira geração cadastra 50 alunos fictícios nos três cursos com uma seed fixa. Repetir o comando preserva os registros já existentes no banco demonstrativo, inclusive alterações feitas na interface.
 - Os bancos e relatórios gerados ficam fora do Git. O banco antigo pode ser importado se o destino padrão ainda estiver ausente. Guarde uma cópia do arquivo legado e acrescente `--banco-legado "caminho/para/sistema_alunos.db"` ao comando padrão de execução. A migração preserva o arquivo de origem.
 
+### Pacote Windows v1.0.0
+
+Para construir o pacote, instale o **Python 3.12 x64** com Tkinter e o launcher `py`. Na raiz do repositório, execute no PowerShell:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_windows.ps1
+& ".\dist\windows\StudentHub\StudentHub.exe"
+& ".\dist\windows\StudentHub\StudentHub.exe" --demo
+```
+
+O script cria o ambiente de build em `.venv-build/` e gera `dist/windows/StudentHub-v1.0.0-windows-x64.zip`. O pacote PyInstaller é do tipo **onedir** e abre a interface sem console. Para distribuir ou executar a partir do ZIP, extraia a pasta `StudentHub` inteira e mantenha `StudentHub.exe` junto da pasta `_internal`.
+
+- O executável guarda o banco normal e o demonstrativo em `%LOCALAPPDATA%\StudentHub`, em arquivos separados. Na primeira execução com `--demo`, ele cria os 50 registros fictícios. As execuções seguintes preservam as edições.
+- Para importar um banco por escolha explícita, acrescente `--banco-legado "C:\caminho\sistema_alunos.db"` ao comando de execução **antes de criar o banco normal do executável**. A importação preserva o arquivo de origem e exige que o destino esteja ausente. A execução pelo código-fonte continua usando `data/`.
+- Quando o workflow **Pacote Windows** estiver disponível na branch padrão, abra a aba **Actions**, selecione o workflow e use **Run workflow**. O ZIP fica em **Artifacts** na execução do workflow.
+
 ### Testes e integração contínua
 
 Na raiz do repositório, com as dependências instaladas:
@@ -179,6 +195,22 @@ After installing the dependencies, generate the fictional dataset and launch the
 - The first run seeds 50 fictional students across the three courses using a fixed seed. Running the script again preserves existing demo records, including edits made through the application.
 - Generated database and report files are excluded from Git. A legacy database can be imported when the default destination does not yet exist. Back up the legacy file and add `--banco-legado "path/to/sistema_alunos.db"` to the standard launch command. The migration preserves the source file.
 
+### Windows v1.0.0 package
+
+To build the package, install **64-bit Python 3.12** with Tkinter and the `py` launcher. From the repository root, run these PowerShell commands:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_windows.ps1
+& ".\dist\windows\StudentHub\StudentHub.exe"
+& ".\dist\windows\StudentHub\StudentHub.exe" --demo
+```
+
+The script creates a build environment in `.venv-build/` and writes `dist/windows/StudentHub-v1.0.0-windows-x64.zip`. PyInstaller builds an **onedir** application that launches without a console. To distribute or run the ZIP, extract the entire `StudentHub` folder and keep `StudentHub.exe` alongside its `_internal` folder.
+
+- The executable keeps the regular and demo databases in separate files under `%LOCALAPPDATA%\StudentHub`. The first launch with `--demo` creates the 50 fictional records. Later launches preserve edits.
+- To import a database explicitly, add `--banco-legado "C:\path\sistema_alunos.db"` to the launch command **before creating the executable's regular database**. Import preserves the source and requires an unused destination. Running from source still uses `data/`.
+- Once the **Pacote Windows** workflow is available on the default branch, open **Actions**, select the workflow, and choose **Run workflow**. The ZIP is listed under **Artifacts** for that run.
+
 ### Tests and continuous integration
 
 From the repository root, after installing the dependencies:
@@ -215,9 +247,16 @@ The project began as Eduardo Brito's college assignment. AI assistants supported
 
 ```text
 StudentHub/
-├── .github/workflows/ci.yml
+├── .github/workflows/
+│   ├── ci.yml
+│   └── windows-build.yml
 ├── docs/images/
-├── scripts/seed_demo.py
+├── packaging/
+│   ├── studenthub_entry.py
+│   └── windows-version.txt
+├── scripts/
+│   ├── build_windows.ps1
+│   └── seed_demo.py
 ├── src/
 │   ├── app.py
 │   ├── componentes.py
@@ -231,7 +270,9 @@ StudentHub/
 │   └── validators.py
 ├── tests/
 ├── data/                 # Gerado localmente / Generated locally
-└── requirements.txt
+├── requirements.txt
+├── requirements-build.txt
+└── StudentHub.spec
 ```
 
 | Caminho / Path | Responsabilidade | Responsibility |
@@ -244,5 +285,6 @@ StudentHub/
 | `tema.py`, `icones.py` | Cores, tipografia e ícones | Colors, typography, and icons |
 | `scripts/seed_demo.py`, `tests/` | Dados fictícios e suíte de testes | Fictional dataset and test suite |
 | `docs/images/`, `.github/workflows/ci.yml` | Capturas e automação de testes | Screenshots and test automation |
+| `StudentHub.spec`, `packaging/`, `scripts/build_windows.ps1` | Configuração e construção do pacote Windows | Windows package configuration and build |
 
 [Português (Brasil)](#português-brasil) · [English](#english)

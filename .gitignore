@@ -26,3 +26,6 @@ dist/
 # Relatórios acadêmicos gerados localmente
 *.csv
 *.xlsx
+
+# Ambiente de empacotamento (build/ e dist/ já são ignorados)
+.venv-build/
